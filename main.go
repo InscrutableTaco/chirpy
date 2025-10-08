@@ -12,11 +12,20 @@ func healthzHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))                                       // write response body
 }
 
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) error {
+	dat, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(dat)
+	return nil
+}
+
 func validateHandler(w http.ResponseWriter, r *http.Request) {
 
 	type parameters struct {
-		// these tags indicate how the keys in the JSON should be mapped to the struct fields
-		// the struct fields must be exported (start with a capital letter) if you want them parsed
 		Body string `json:"body"`
 	}
 
@@ -24,15 +33,28 @@ func validateHandler(w http.ResponseWriter, r *http.Request) {
 	params := parameters{}
 	err := decoder.Decode(&params)
 	if err != nil {
-		// an error will be thrown if the JSON is invalid or has the wrong types
-		// any missing fields will simply have their values in the struct set to their zero value
 		log.Printf("Error decoding parameters: %s", err)
 		w.WriteHeader(500)
 		return
 	}
 	// params is a struct with data populated successfully
-	// ...
 
+	type errorVals struct {
+		Error string `json:"error"`
+	}
+
+	type validVals struct {
+		Valid bool `json:"valid"`
+	}
+
+	if len(params.Body) > 140 {
+		err := respondWithJSON(w, 400, errorVals{Error: "Chirp is too long"})
+		if err != nil {
+			log.Printf("Error responding with JSON: %s", err)
+		}
+		return
+	}
+	respondWithJSON(w, 200, validVals{Valid: true})
 }
 
 func routes(cfg *apiConfig) http.Handler {
