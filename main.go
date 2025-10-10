@@ -1,10 +1,23 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"      // logging errors and info
 	"net/http" // web server and HTTP utilities
+	"os"
+	"strings"
+
+	"github.com/joho/godotenv"
+	"github.com/jonathangibson/chirpy/internal/database"
+	_ "github.com/lib/pq"
 )
+
+var naughty = map[string]struct{}{
+	"kerfuffle": {},
+	"sharbert":  {},
+	"fornax":    {},
+}
 
 func healthzHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8") // set response header
@@ -23,6 +36,16 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) error
 	return nil
 }
 
+func stripProfane(s string) string {
+	words := strings.Split(s, " ")
+	for i, w := range words {
+		if _, ok := naughty[strings.ToLower(w)]; ok {
+			words[i] = "****"
+		}
+	}
+	return strings.Join(words, " ")
+}
+
 func validateHandler(w http.ResponseWriter, r *http.Request) {
 
 	type parameters struct {
@@ -34,7 +57,7 @@ func validateHandler(w http.ResponseWriter, r *http.Request) {
 	err := decoder.Decode(&params)
 	if err != nil {
 		log.Printf("Error decoding parameters: %s", err)
-		w.WriteHeader(500)
+		w.WriteHeader(400)
 		return
 	}
 	// params is a struct with data populated successfully
@@ -44,7 +67,7 @@ func validateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type validVals struct {
-		Valid bool `json:"valid"`
+		CleanedBody string `json:"cleaned_body"`
 	}
 
 	if len(params.Body) > 140 {
@@ -54,7 +77,7 @@ func validateHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	respondWithJSON(w, 200, validVals{Valid: true})
+	respondWithJSON(w, 200, validVals{CleanedBody: stripProfane(params.Body)})
 }
 
 func routes(cfg *apiConfig) http.Handler {
@@ -69,7 +92,24 @@ func routes(cfg *apiConfig) http.Handler {
 }
 
 func main() {
-	cfg := apiConfig{}
-	log.Println("Now starting server...!")                // log startup message
-	log.Fatal(http.ListenAndServe(":8080", routes(&cfg))) // start server on port 8080 with configured routes
+	if err := godotenv.Load(); err != nil {
+		log.Println("warning: .env not loaded:", err)
+	}
+	dbURL := os.Getenv("DB_URL")
+	if dbURL == "" {
+		log.Fatal("DB_URL is empty")
+	}
+
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	dbQueries := database.New(db)
+
+	cfg := apiConfig{Queries: dbQueries}
+
+	log.Println("Now starting server...!")
+	log.Fatal(http.ListenAndServe(":8080", routes(&cfg)))
 }
