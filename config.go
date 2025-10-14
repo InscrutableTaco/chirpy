@@ -94,28 +94,31 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 
 func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 
-	type parameters struct {
-		Body   string `json:"body"`
-		UserId string `json:"user_id"`
-	}
+	/*
+		type parameters struct {
+			Body   string `json:"body"`
+			UserId string `json:"user_id"`
+		}
+	*/
 
 	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
+	params := database.CreateChirpParams{} //parameters{}
 	err := decoder.Decode(&params)
 	if err != nil {
 		log.Printf("Error decoding parameters: %s", err)
 		respondWithJSON(w, 400, errorResponse{Error: err.Error()})
 		return
 	}
-	// params is a struct with data populated successfully
 
 	type errorVals struct {
 		Error string `json:"error"`
 	}
 
-	type validVals struct {
-		CleanedBody string `json:"cleaned_body"`
-	}
+	/*
+		type validVals struct {
+			CleanedBody string `json:"cleaned_body"`
+		}
+	*/
 
 	if len(params.Body) > 140 {
 		err := respondWithJSON(w, 400, errorVals{Error: "Chirp is too long"})
@@ -124,5 +127,27 @@ func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
 	//respondWithJSON(w, 200, validVals{CleanedBody: stripProfane(params.Body)})
+
+	params.Body = stripProfane(params.Body)
+
+	chirp, err := cfg.Queries.CreateChirp(r.Context(), params)
+
+	if err != nil {
+		log.Printf("Error creating chirp: %s", err)
+		respondWithJSON(w, 500, errorResponse{Error: err.Error()})
+		return
+	}
+
+	responseChirp := Chirp{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserId:    chirp.UserID,
+	}
+
+	respondWithJSON(w, 201, responseChirp)
+
 }
