@@ -88,6 +88,14 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 		respondWithJSON(w, 500, errorResponse{Error: err.Error()})
 		return
 	}
+
+	err = cfg.Queries.DeleteChirps(r.Context())
+	if err != nil {
+		log.Printf("Error deleting chirps: %s", err)
+		respondWithJSON(w, 500, errorResponse{Error: err.Error()})
+		return
+	}
+
 	cfg.fileserverHits.Store(0)
 	respondWithJSON(w, 200, map[string]string{"status": "ok"})
 }
@@ -131,6 +139,8 @@ func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 	//respondWithJSON(w, 200, validVals{CleanedBody: stripProfane(params.Body)})
 
 	params.Body = stripProfane(params.Body)
+
+	log.Printf("%s", params.UserID.String())
 
 	chirp, err := cfg.Queries.CreateChirp(r.Context(), params)
 
