@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sync/atomic"
 
+	"github.com/google/uuid"
 	"github.com/jonathangibson/chirpy/internal/database"
 )
 
@@ -102,62 +103,46 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 
 func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 
-	/*
-		type parameters struct {
-			Body   string `json:"body"`
-			UserId string `json:"user_id"`
-		}
-	*/
+	type createChirpDTO struct {
+		Body   string `json:"body"`
+		UserID string `json:"user_id"`
+	}
 
-	decoder := json.NewDecoder(r.Body)
-	params := database.CreateChirpParams{} //parameters{}
-	err := decoder.Decode(&params)
+	var dto createChirpDTO
+	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
+		respondWithJSON(w, 400, errorResponse{Error: "invalid JSON"})
+		return
+	}
+
+	if len(dto.Body) > 140 {
+		respondWithJSON(w, 400, map[string]string{"error": "Chirp is too long"})
+		return
+	}
+
+	uid, err := uuid.Parse(dto.UserID)
 	if err != nil {
-		log.Printf("Error decoding parameters: %s", err)
-		respondWithJSON(w, 400, errorResponse{Error: err.Error()})
+		respondWithJSON(w, 400, map[string]string{"error": "invalid user_id"})
 		return
 	}
 
-	type errorVals struct {
-		Error string `json:"error"`
+	params := database.CreateChirpParams{
+		Body:   stripProfane(dto.Body),
+		UserID: uid,
 	}
-
-	/*
-		type validVals struct {
-			CleanedBody string `json:"cleaned_body"`
-		}
-	*/
-
-	if len(params.Body) > 140 {
-		err := respondWithJSON(w, 400, errorVals{Error: "Chirp is too long"})
-		if err != nil {
-			log.Printf("Error responding with JSON: %s", err)
-		}
-		return
-	}
-
-	//respondWithJSON(w, 200, validVals{CleanedBody: stripProfane(params.Body)})
-
-	params.Body = stripProfane(params.Body)
-
-	log.Printf("%s", params.UserID.String())
 
 	chirp, err := cfg.Queries.CreateChirp(r.Context(), params)
-
 	if err != nil {
 		log.Printf("Error creating chirp: %s", err)
 		respondWithJSON(w, 500, errorResponse{Error: err.Error()})
 		return
 	}
 
-	responseChirp := Chirp{
+	respondWithJSON(w, 201, Chirp{
 		ID:        chirp.ID,
 		CreatedAt: chirp.CreatedAt,
 		UpdatedAt: chirp.UpdatedAt,
 		Body:      chirp.Body,
 		UserId:    chirp.UserID,
-	}
-
-	respondWithJSON(w, 201, responseChirp)
+	})
 
 }
