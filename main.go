@@ -59,6 +59,8 @@ func stripProfane(s string) string {
 	return strings.Join(words, " ")
 }
 
+//replaced w/ cfg.chirpsHandler
+/*
 func validateHandler(w http.ResponseWriter, r *http.Request) {
 
 	type parameters struct {
@@ -92,15 +94,17 @@ func validateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	respondWithJSON(w, 200, validVals{CleanedBody: stripProfane(params.Body)})
 }
+*/
 
 func routes(cfg *apiConfig) http.Handler {
 	mux := http.NewServeMux()                          // create a new router
 	mux.HandleFunc("GET /api/healthz", healthzHandler) // register handler for /healthz
 	mux.HandleFunc("GET /admin/metrics", cfg.writeNumberOfRequests)
 	//mux.HandleFunc("POST /admin/reset", cfg.resetHitsHandler)
-	mux.HandleFunc("POST /api/validate_chirp", validateHandler)
+	//mux.HandleFunc("POST /api/validate_chirp", validateHandler)
 	mux.HandleFunc("POST /api/users", cfg.addUserHandler)
 	mux.HandleFunc("POST /admin/reset", cfg.resetHandler)
+	mux.HandleFunc("POST /api/chirps", cfg.chirpsHandler)
 	mux.Handle("/app/", cfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("."))))) // register file server for /app/
 	mux.Handle("/app", cfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(".")))))  // and for just /app because why not
 	return mux                                                                                              // return the router
