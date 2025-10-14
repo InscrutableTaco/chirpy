@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"sync/atomic"
 
@@ -11,6 +13,7 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	Queries        *database.Queries // go
+	Platform       string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -28,9 +31,63 @@ func (cfg *apiConfig) writeNumberOfRequests(w http.ResponseWriter, r *http.Reque
 	w.Write([]byte(response))
 }
 
+/*
 func (cfg *apiConfig) resetHitsHandler(w http.ResponseWriter, r *http.Request) {
-	cfg.fileserverHits.Store(0)
+	cfg.fileserverHits.Store(0) // only need this part added to the new func
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(200)
 	w.Write([]byte("Hits reset"))
+}
+*/
+
+func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
+
+	type parameters struct {
+		Email string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+
+	if err != nil {
+		log.Printf("Error decoding parameters: %s", err)
+		respondWithJSON(w, 400, errorResponse{Error: err.Error()})
+		return
+	}
+
+	user, err := cfg.Queries.CreateUser(r.Context(), params.Email)
+
+	if err != nil {
+		log.Printf("Error creating user: %s", err)
+		respondWithJSON(w, 500, errorResponse{Error: err.Error()})
+		return
+	}
+
+	responseUser := User{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	}
+
+	respondWithJSON(w, 201, responseUser)
+
+}
+
+func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
+
+	if cfg.Platform != "dev" {
+		respondWithJSON(w, 403, errorResponse{Error: "403 Forbidden"})
+		return
+	}
+
+	err := cfg.Queries.DeleteUsers(r.Context())
+	if err != nil {
+		log.Printf("Error deleting users: %s", err)
+		respondWithJSON(w, 500, errorResponse{Error: err.Error()})
+		return
+	}
+	cfg.fileserverHits.Store(0)
+	respondWithJSON(w, 200, map[string]string{"status": "ok"})
 }

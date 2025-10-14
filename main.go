@@ -7,11 +7,24 @@ import (
 	"net/http" // web server and HTTP utilities
 	"os"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"github.com/jonathangibson/chirpy/internal/database"
 	_ "github.com/lib/pq"
 )
+
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
+type User struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
+}
 
 var naughty = map[string]struct{}{
 	"kerfuffle": {},
@@ -57,7 +70,7 @@ func validateHandler(w http.ResponseWriter, r *http.Request) {
 	err := decoder.Decode(&params)
 	if err != nil {
 		log.Printf("Error decoding parameters: %s", err)
-		w.WriteHeader(400)
+		respondWithJSON(w, 400, errorResponse{Error: err.Error()})
 		return
 	}
 	// params is a struct with data populated successfully
@@ -84,8 +97,10 @@ func routes(cfg *apiConfig) http.Handler {
 	mux := http.NewServeMux()                          // create a new router
 	mux.HandleFunc("GET /api/healthz", healthzHandler) // register handler for /healthz
 	mux.HandleFunc("GET /admin/metrics", cfg.writeNumberOfRequests)
-	mux.HandleFunc("POST /admin/reset", cfg.resetHitsHandler)
+	//mux.HandleFunc("POST /admin/reset", cfg.resetHitsHandler)
 	mux.HandleFunc("POST /api/validate_chirp", validateHandler)
+	mux.HandleFunc("POST /api/users", cfg.addUserHandler)
+	mux.HandleFunc("POST /admin/reset", cfg.resetHandler)
 	mux.Handle("/app/", cfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("."))))) // register file server for /app/
 	mux.Handle("/app", cfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(".")))))  // and for just /app because why not
 	return mux                                                                                              // return the router
@@ -99,6 +114,10 @@ func main() {
 	if dbURL == "" {
 		log.Fatal("DB_URL is empty")
 	}
+	platform := os.Getenv("PLATFORM")
+	if platform == "" {
+		platform = "prod"
+	}
 
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -108,7 +127,10 @@ func main() {
 
 	dbQueries := database.New(db)
 
-	cfg := apiConfig{Queries: dbQueries}
+	cfg := apiConfig{
+		Queries:  dbQueries,
+		Platform: platform,
+	}
 
 	log.Println("Now starting server...!")
 	log.Fatal(http.ListenAndServe(":8080", routes(&cfg)))
