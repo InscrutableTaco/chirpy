@@ -1,7 +1,9 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -168,5 +170,29 @@ func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, 200, chirpSlice)
+
+}
+
+func (c *apiConfig) getOneChirpHandler(w http.ResponseWriter, r *http.Request) {
+
+	idStr := r.PathValue("chirpID")
+	chirpID, err := uuid.Parse(idStr)
+	if err != nil {
+		respondWithJSON(w, 400, errorResponse{Error: "Unable to parse chirp id"})
+		return
+	}
+
+	chirp, err := c.Queries.GetOneChirp(r.Context(), chirpID)
+	if errors.Is(err, sql.ErrNoRows) {
+		respondWithJSON(w, 404, errorResponse{Error: "not found"})
+		return
+	}
+
+	if err != nil {
+		respondWithJSON(w, 500, errorResponse{Error: "Internal error"})
+		return
+	}
+
+	respondWithJSON(w, 200, chirp)
 
 }
