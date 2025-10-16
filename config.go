@@ -177,12 +177,14 @@ func (c *apiConfig) getOneChirpHandler(w http.ResponseWriter, r *http.Request) {
 
 	idStr := r.PathValue("chirpID")
 	chirpID, err := uuid.Parse(idStr)
+
 	if err != nil {
 		respondWithJSON(w, 400, errorResponse{Error: "Unable to parse chirp id"})
 		return
 	}
 
 	chirp, err := c.Queries.GetOneChirp(r.Context(), chirpID)
+
 	if errors.Is(err, sql.ErrNoRows) {
 		respondWithJSON(w, 404, errorResponse{Error: "not found"})
 		return
@@ -193,6 +195,12 @@ func (c *apiConfig) getOneChirpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondWithJSON(w, 200, chirp)
+	respondWithJSON(w, 200, Chirp{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserId:    chirp.UserID,
+	})
 
 }
