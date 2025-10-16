@@ -146,3 +146,27 @@ func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 }
+
+func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
+	chirps, err := cfg.Queries.GetAllChirps(r.Context())
+
+	if err != nil {
+		respondWithJSON(w, 500, errorResponse{Error: err.Error()})
+		return
+	}
+
+	chirpSlice := make([]Chirp, 0, len(chirps))
+
+	for _, c := range chirps {
+		chirpSlice = append(chirpSlice, Chirp{
+			ID:        c.ID,
+			CreatedAt: c.CreatedAt,
+			UpdatedAt: c.UpdatedAt,
+			Body:      c.Body,
+			UserId:    c.UserID,
+		})
+	}
+
+	respondWithJSON(w, 200, chirpSlice)
+
+}
