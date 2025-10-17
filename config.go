@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync/atomic"
 
 	"github.com/google/uuid"
+	"github.com/jonathangibson/chirpy/internal/auth"
 	"github.com/jonathangibson/chirpy/internal/database"
 )
 
@@ -46,7 +48,8 @@ func (cfg *apiConfig) resetHitsHandler(w http.ResponseWriter, r *http.Request) {
 func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	type parameters struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -59,11 +62,30 @@ func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := cfg.Queries.CreateUser(r.Context(), params.Email)
+	email := strings.TrimSpace(params.Email)
+	pwd := strings.TrimSpace(params.Password)
+	if email == "" || pwd == "" {
+		respondWithJSON(w, 400, errorResponse{Error: "email and password are required"})
+		return
+	}
+
+	hashPass, err := auth.HashPassword(pwd)
+	if err != nil {
+		log.Printf("Error hashing password: %s", err)
+		respondWithJSON(w, 500, errorResponse{Error: "Internal server error"}) // Is 400 correct?
+		return
+	}
+
+	dbParams := database.CreateUserParams{
+		Email:          params.Email,
+		HashedPassword: hashPass,
+	}
+
+	user, err := cfg.Queries.CreateUser(r.Context(), dbParams)
 
 	if err != nil {
 		log.Printf("Error creating user: %s", err)
-		respondWithJSON(w, 500, errorResponse{Error: err.Error()})
+		respondWithJSON(w, 500, errorResponse{Error: "Internal server error"})
 		return
 	}
 
