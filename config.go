@@ -125,6 +125,62 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, 200, map[string]string{"status": "ok"})
 }
 
+func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
+
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+
+	if err != nil {
+		log.Printf("Error decoding parameters: %s", err)
+		respondWithJSON(w, 400, errorResponse{Error: err.Error()})
+		return
+	}
+
+	email := strings.TrimSpace(params.Email)
+	pwd := strings.TrimSpace(params.Password)
+
+	/*
+		hashPass, err := auth.HashPassword(pwd)
+		if err != nil {
+			log.Printf("Error hashing password: %s", err)
+			respondWithJSON(w, 500, errorResponse{Error: "Internal server error"}) // Is 400 correct?
+			return
+		}
+	*/
+
+	user, err := cfg.Queries.GetUserByEmail(r.Context(), email)
+
+	if err != nil {
+		log.Printf("Error locating user: %s", err)
+		respondWithJSON(w, 401, errorResponse{Error: "Incorrect email or password"})
+		return
+	}
+
+	match, err := auth.CheckPasswordHash(pwd, user.HashedPassword)
+
+	if !match || err != nil {
+		log.Printf("Password mismatch or error")
+		respondWithJSON(w, 401, errorResponse{Error: "Incorrect email or password"})
+		return
+	}
+
+	responseUser := User{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	}
+
+	respondWithJSON(w, 200, responseUser)
+
+}
+
 func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 
 	type createChirpDTO struct {

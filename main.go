@@ -114,6 +114,7 @@ func routes(cfg *apiConfig) http.Handler {
 	mux.HandleFunc("POST /admin/reset", cfg.resetHandler)
 	mux.HandleFunc("POST /api/chirps", cfg.chirpsHandler)
 	mux.HandleFunc("GET /api/chirps", cfg.getChirpsHandler)
+	mux.HandleFunc("POST /api/login", cfg.loginHandler)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", cfg.getOneChirpHandler)
 	mux.Handle("/app/", cfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("."))))) // register file server for /app/
 	mux.Handle("/app", cfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(".")))))  // and for just /app because why not
