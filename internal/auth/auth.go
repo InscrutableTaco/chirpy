@@ -63,14 +63,6 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 	return id, nil
 }
 
-/*
-
-look for the Authorization header in the headers parameter and
-return the TOKEN_STRING if it exists (stripping off the Bearer
-prefix and whitespace). If the header doesn't exist, return an error.
-
-*/
-
 func GetBearerToken(headers http.Header) (string, error) {
 
 	auth := headers.Get("Authorization")
