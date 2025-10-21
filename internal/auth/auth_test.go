@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
@@ -44,5 +45,26 @@ func TestValidateJWT_WrongSecret(t *testing.T) {
 	}
 	if _, err := auth.ValidateJWT(tok, "bad-secret"); err == nil {
 		t.Fatalf("expected error for wrong secret")
+	}
+}
+
+// go
+func TestGetBearerToken(t *testing.T) {
+	hdrs := http.Header{}
+	hdrs.Set("Authorization", "Bearer abc.def.ghi")
+	tok, err := auth.GetBearerToken(hdrs)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if tok != "abc.def.ghi" {
+		t.Fatalf("got %q, want %q", tok, "abc.def.ghi")
+	}
+}
+
+func TestGetBearerToken_MissingHeader(t *testing.T) {
+	hdrs := http.Header{}
+	_, err := auth.GetBearerToken(hdrs)
+	if err == nil {
+		t.Fatal("expected error, got nil")
 	}
 }

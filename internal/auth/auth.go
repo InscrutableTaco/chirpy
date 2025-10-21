@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -74,13 +75,15 @@ func GetBearerToken(headers http.Header) (string, error) {
 
 	auth := headers.Get("Authorization")
 	if auth == "" {
-		// return error
+		return "", errors.New("authorization not found")
 	}
-	// expect "Bearer <token>"
+
 	const prefix = "Bearer "
 	if !strings.HasPrefix(auth, prefix) {
-		// return error
+		return "", errors.New("authorization missing prefix")
 	}
+
 	token := strings.TrimSpace(strings.TrimPrefix(auth, prefix))
-	// return token
+
+	return token, nil
 }
