@@ -38,15 +38,6 @@ func (cfg *apiConfig) writeNumberOfRequests(w http.ResponseWriter, r *http.Reque
 	w.Write([]byte(response))
 }
 
-/*
-func (cfg *apiConfig) resetHitsHandler(w http.ResponseWriter, r *http.Request) {
-	cfg.fileserverHits.Store(0) // only need this part added to the new func
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(200)
-	w.Write([]byte("Hits reset"))
-}
-*/
-
 func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	type parameters struct {
@@ -130,15 +121,13 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	type parameters struct {
-		Email            string `json:"email"`
-		Password         string `json:"password"`
-		ExpiresInSeconds int    `json:"expires_in_seconds"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	err := decoder.Decode(&params)
-
 	if err != nil {
 		log.Printf("Error decoding parameters: %s", err)
 		respondWithJSON(w, 400, errorResponse{Error: err.Error()})
@@ -149,7 +138,6 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	pwd := strings.TrimSpace(params.Password)
 
 	user, err := cfg.Queries.GetUserByEmail(r.Context(), email)
-
 	if err != nil {
 		log.Printf("Error locating user: %s", err)
 		respondWithJSON(w, 401, errorResponse{Error: "Incorrect email or password"})
@@ -157,18 +145,10 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	match, err := auth.CheckPasswordHash(pwd, user.HashedPassword)
-
 	if !match || err != nil {
 		log.Printf("Password mismatch or error")
 		respondWithJSON(w, 401, errorResponse{Error: "Incorrect email or password"})
 		return
-	}
-
-	var expIn int
-	if 0 < params.ExpiresInSeconds && params.ExpiresInSeconds <= 3600 {
-		expIn = params.ExpiresInSeconds
-	} else {
-		expIn = 3600
 	}
 
 	responseUser := User{
@@ -178,13 +158,33 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Email:     user.Email,
 	}
 
-	tok, err := auth.MakeJWT(user.ID, cfg.Secret, time.Duration(expIn)*time.Second)
+	tok, err := auth.MakeJWT(user.ID, cfg.Secret, time.Duration(time.Hour))
+	if err != nil {
+		log.Printf("error: %s", err)
+		respondWithJSON(w, 500, responseUser)
+	}
+
+	refreshTok, err := auth.MakeRefreshToken()
+	if err != nil {
+		log.Printf("error: %s", err)
+		respondWithJSON(w, 500, responseUser)
+	}
+
+	_, err = cfg.Queries.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
+		Token:  refreshTok,
+		UserID: user.ID,
+		ExpiresAt: sql.NullTime{
+			Time:  time.Now().Add(60 * 24 * time.Hour),
+			Valid: true,
+		},
+	})
 	if err != nil {
 		log.Printf("error: %s", err)
 		respondWithJSON(w, 500, responseUser)
 	}
 
 	responseUser.Token = tok
+	responseUser.RefreshToken = refreshTok
 
 	respondWithJSON(w, 200, responseUser)
 
