@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jonathangibson/chirpy/internal/auth"
@@ -19,6 +20,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	Queries        *database.Queries // go
 	Platform       string
+	Secret         string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -128,8 +130,9 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	type parameters struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email            string `json:"email"`
+		Password         string `json:"password"`
+		ExpiresInSeconds int    `json:"expires_in_seconds"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -144,15 +147,6 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	email := strings.TrimSpace(params.Email)
 	pwd := strings.TrimSpace(params.Password)
-
-	/*
-		hashPass, err := auth.HashPassword(pwd)
-		if err != nil {
-			log.Printf("Error hashing password: %s", err)
-			respondWithJSON(w, 500, errorResponse{Error: "Internal server error"}) // Is 400 correct?
-			return
-		}
-	*/
 
 	user, err := cfg.Queries.GetUserByEmail(r.Context(), email)
 
@@ -170,6 +164,13 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var expIn int
+	if 0 < params.ExpiresInSeconds && params.ExpiresInSeconds <= 3600 {
+		expIn = params.ExpiresInSeconds
+	} else {
+		expIn = 3600
+	}
+
 	responseUser := User{
 		ID:        user.ID,
 		CreatedAt: user.CreatedAt,
@@ -177,11 +178,25 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Email:     user.Email,
 	}
 
+	tok, err := auth.MakeJWT(user.ID, cfg.Secret, time.Duration(expIn))
+	if err != nil {
+		log.Fatal(err.Error())
+		respondWithJSON(w, 500, responseUser)
+	}
+
+	responseUser.Token = tok
+
 	respondWithJSON(w, 200, responseUser)
 
 }
 
 func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
+
+	tok, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Fatal("Could not get token")
+		respondWithJSON(w, 401, "Unauthorized")
+	}
 
 	type createChirpDTO struct {
 		Body   string `json:"body"`
@@ -208,6 +223,19 @@ func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 	params := database.CreateChirpParams{
 		Body:   stripProfane(dto.Body),
 		UserID: uid,
+	}
+
+	jwtUserId, err := auth.ValidateJWT(tok, cfg.Secret)
+	if err != nil {
+		log.Fatal(err.Error())
+		respondWithJSON(w, 401, "Unauthorized")
+		return
+	}
+
+	if jwtUserId != params.UserID {
+		log.Fatal("invalid token")
+		respondWithJSON(w, 401, "Unauthorized")
+		return
 	}
 
 	chirp, err := cfg.Queries.CreateChirp(r.Context(), params)

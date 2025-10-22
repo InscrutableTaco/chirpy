@@ -24,6 +24,7 @@ type User struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Email     string    `json:"email"`
+	Token     string    `json:"token"`
 }
 
 type Chirp struct {
@@ -134,6 +135,11 @@ func main() {
 		platform = "prod"
 	}
 
+	secret := os.Getenv("SECRET")
+	if secret == "" {
+		log.Fatal("SECRET is empty")
+	}
+
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatal(err)
@@ -145,6 +151,7 @@ func main() {
 	cfg := apiConfig{
 		Queries:  dbQueries,
 		Platform: platform,
+		Secret:   secret,
 	}
 
 	log.Println("Now starting server...!")
