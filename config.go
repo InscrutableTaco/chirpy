@@ -327,3 +327,22 @@ func (cfg *apiConfig) refreshHandler(w http.ResponseWriter, r *http.Request) {
 
 	respondWithJSON(w, 200, map[string]string{"token": newTok})
 }
+
+func (cfg *apiConfig) revokeHandler(w http.ResponseWriter, r *http.Request) {
+	tok, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Printf("bearer token not found")
+		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
+		return
+	}
+
+	err = cfg.Queries.RevokeRefreshToken(r.Context(), tok)
+	if err != nil {
+		log.Printf("could not retrieve refresh token")
+		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
+		return
+	}
+
+	w.WriteHeader(204)
+
+}
