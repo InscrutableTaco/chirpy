@@ -178,9 +178,9 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Email:     user.Email,
 	}
 
-	tok, err := auth.MakeJWT(user.ID, cfg.Secret, time.Duration(expIn))
+	tok, err := auth.MakeJWT(user.ID, cfg.Secret, time.Duration(expIn)*time.Second)
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Printf("error: %s", err)
 		respondWithJSON(w, 500, responseUser)
 	}
 
@@ -194,13 +194,13 @@ func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 
 	tok, err := auth.GetBearerToken(r.Header)
 	if err != nil {
-		log.Fatal("Could not get token")
-		respondWithJSON(w, 401, "Unauthorized")
+		log.Printf("Could not get token")
+		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
+		return
 	}
 
 	type createChirpDTO struct {
-		Body   string `json:"body"`
-		UserID string `json:"user_id"`
+		Body string `json:"body"`
 	}
 
 	var dto createChirpDTO
@@ -210,38 +210,26 @@ func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(dto.Body) > 140 {
-		respondWithJSON(w, 400, map[string]string{"error": "Chirp is too long"})
+		respondWithJSON(w, 400, errorResponse{Error: "Chirp is too long"})
 		return
 	}
 
-	uid, err := uuid.Parse(dto.UserID)
+	tokenId, err := auth.ValidateJWT(tok, cfg.Secret)
 	if err != nil {
-		respondWithJSON(w, 400, map[string]string{"error": "invalid user_id"})
+		log.Printf("Error validating token: %s", err.Error())
+		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
 		return
 	}
 
 	params := database.CreateChirpParams{
 		Body:   stripProfane(dto.Body),
-		UserID: uid,
-	}
-
-	jwtUserId, err := auth.ValidateJWT(tok, cfg.Secret)
-	if err != nil {
-		log.Fatal(err.Error())
-		respondWithJSON(w, 401, "Unauthorized")
-		return
-	}
-
-	if jwtUserId != params.UserID {
-		log.Fatal("invalid token")
-		respondWithJSON(w, 401, "Unauthorized")
-		return
+		UserID: tokenId,
 	}
 
 	chirp, err := cfg.Queries.CreateChirp(r.Context(), params)
 	if err != nil {
 		log.Printf("Error creating chirp: %s", err)
-		respondWithJSON(w, 500, errorResponse{Error: err.Error()})
+		respondWithJSON(w, 500, errorResponse{Error: "Error creating chirp"})
 		return
 	}
 
