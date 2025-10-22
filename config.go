@@ -162,12 +162,14 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("error: %s", err)
 		respondWithJSON(w, 500, responseUser)
+		return
 	}
 
 	refreshTok, err := auth.MakeRefreshToken()
 	if err != nil {
 		log.Printf("error: %s", err)
 		respondWithJSON(w, 500, responseUser)
+		return
 	}
 
 	_, err = cfg.Queries.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
@@ -181,6 +183,7 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("error: %s", err)
 		respondWithJSON(w, 500, responseUser)
+		return
 	}
 
 	responseUser.Token = tok
@@ -194,7 +197,7 @@ func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 
 	tok, err := auth.GetBearerToken(r.Header)
 	if err != nil {
-		log.Printf("Could not get token")
+		log.Printf("bearer token not found")
 		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
 		return
 	}
@@ -267,7 +270,7 @@ func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (c *apiConfig) getOneChirpHandler(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) getOneChirpHandler(w http.ResponseWriter, r *http.Request) {
 
 	idStr := r.PathValue("chirpID")
 	chirpID, err := uuid.Parse(idStr)
@@ -277,7 +280,7 @@ func (c *apiConfig) getOneChirpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chirp, err := c.Queries.GetOneChirp(r.Context(), chirpID)
+	chirp, err := cfg.Queries.GetOneChirp(r.Context(), chirpID)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		respondWithJSON(w, 404, errorResponse{Error: "not found"})
@@ -297,4 +300,30 @@ func (c *apiConfig) getOneChirpHandler(w http.ResponseWriter, r *http.Request) {
 		UserId:    chirp.UserID,
 	})
 
+}
+
+func (cfg *apiConfig) refreshHandler(w http.ResponseWriter, r *http.Request) {
+
+	tok, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Printf("bearer token not found")
+		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
+		return
+	}
+
+	user, err := cfg.Queries.GetUserFromRefreshToken(r.Context(), tok)
+	if err != nil {
+		log.Printf("refresh token lookup failed")
+		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
+		return
+	}
+
+	newTok, err := auth.MakeJWT(user.ID, cfg.Secret, time.Duration(time.Hour))
+	if err != nil {
+		log.Printf("error: %s", err)
+		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
+		return
+	}
+
+	respondWithJSON(w, 200, map[string]string{"token": newTok})
 }
