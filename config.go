@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -21,6 +22,7 @@ type apiConfig struct {
 	Queries        *database.Queries // go
 	Platform       string
 	Secret         string
+	ApiKey         string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -249,11 +251,31 @@ func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
-	chirps, err := cfg.Queries.GetAllChirps(r.Context())
 
-	if err != nil {
-		respondWithJSON(w, 500, errorResponse{Error: err.Error()})
-		return
+	idStr := r.URL.Query().Get("author_id")
+	sortStr := r.URL.Query().Get("sort")
+
+	var chirps []database.Chirp
+	var err error
+
+	if idStr != "" {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			log.Printf("Error parsing id string: %s", err.Error())
+			respondWithJSON(w, 401, "Invalid user id")
+			return
+		}
+		chirps, err = cfg.Queries.GetUserChirps(r.Context(), id)
+		if err != nil {
+			respondWithJSON(w, 500, errorResponse{Error: err.Error()})
+			return
+		}
+	} else {
+		chirps, err = cfg.Queries.GetAllChirps(r.Context())
+		if err != nil {
+			respondWithJSON(w, 500, errorResponse{Error: err.Error()})
+			return
+		}
 	}
 
 	chirpSlice := make([]Chirp, 0, len(chirps))
@@ -266,6 +288,10 @@ func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 			Body:      c.Body,
 			UserId:    c.UserID,
 		})
+	}
+
+	if sortStr == "desc" {
+		sort.Slice(chirpSlice, func(i, j int) bool { return chirpSlice[i].CreatedAt.After(chirpSlice[j].CreatedAt) })
 	}
 
 	respondWithJSON(w, 200, chirpSlice)
@@ -481,6 +507,19 @@ func (cfg *apiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request)
 
 func (cfg *apiConfig) upgradeHandler(w http.ResponseWriter, r *http.Request) {
 
+	key, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		log.Printf("api key not found")
+		w.WriteHeader(401)
+		return
+	}
+
+	if key != cfg.ApiKey {
+		log.Printf("api key doesn't match")
+		w.WriteHeader(401)
+		return
+	}
+
 	type parameters struct {
 		Event string `json:"event"`
 		Data  struct {
@@ -490,7 +529,7 @@ func (cfg *apiConfig) upgradeHandler(w http.ResponseWriter, r *http.Request) {
 
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		log.Printf("Error decoding parameters: %s", err)
 		w.WriteHeader(400)

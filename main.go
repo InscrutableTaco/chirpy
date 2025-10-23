@@ -145,6 +145,11 @@ func main() {
 		log.Fatal("SECRET is empty")
 	}
 
+	apiKey := os.Getenv("POLKA_KEY")
+	if apiKey == "" {
+		log.Fatal("POLKA_KEY is empty")
+	}
+
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatal(err)
@@ -157,6 +162,7 @@ func main() {
 		Queries:  dbQueries,
 		Platform: platform,
 		Secret:   secret,
+		ApiKey:   apiKey,
 	}
 
 	log.Println("Now starting server...!")
