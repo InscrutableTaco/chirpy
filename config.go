@@ -421,3 +421,46 @@ func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 	respondWithJSON(w, 200, responseUser)
 
 }
+
+func (cfg *apiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request) {
+
+	//getting the chirp
+	idStr := r.PathValue("chirpID")
+	chirpID, err := uuid.Parse(idStr)
+	if err != nil {
+		respondWithJSON(w, 400, errorResponse{Error: "Unable to parse chirp id"})
+		return
+	}
+
+	chirp, err := cfg.Queries.GetOneChirp(r.Context(), chirpID)
+	if errors.Is(err, sql.ErrNoRows) {
+		respondWithJSON(w, 404, errorResponse{Error: "not found"})
+		return
+	}
+	if err != nil {
+		respondWithJSON(w, 500, errorResponse{Error: "Internal error"})
+		return
+	}
+
+	//authenticating the user
+	tok, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Printf("bearer token not found")
+		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
+		return
+	}
+
+	userId, err := auth.ValidateJWT(tok, cfg.Secret)
+	if err != nil {
+		log.Printf("Error validating token: %s", err.Error())
+		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
+		return
+	}
+
+	if chirp.UserID != userId {
+		log.Printf("User requested unauthorized chirp deletion")
+		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
+		return
+	}
+
+}
