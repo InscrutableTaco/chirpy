@@ -370,7 +370,7 @@ func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	tokenId, err := auth.ValidateJWT(tok, cfg.Secret)
+	userId, err := auth.ValidateJWT(tok, cfg.Secret)
 	if err != nil {
 		log.Printf("Error validating token: %s", err.Error())
 		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
@@ -391,17 +391,10 @@ func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-
-	userId := tokenId.
-
-
-
-
-
 	dbParams := database.UpdateUserParams{
 		Email:          email,
 		HashedPassword: hashPass,
-		ID:             ,
+		ID:             userId,
 	}
 
 	err = cfg.Queries.UpdateUser(r.Context(), dbParams)
@@ -410,4 +403,21 @@ func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 		respondWithJSON(w, 500, errorResponse{Error: "Internal server error"})
 		return
 	}
+
+	user, err := cfg.Queries.GetUserByID(r.Context(), userId)
+	if err != nil {
+		log.Printf("Error retrieving user after updating: %s", err)
+		respondWithJSON(w, 500, errorResponse{Error: "Internal server error"})
+		return
+	}
+
+	responseUser := User{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	}
+
+	respondWithJSON(w, 200, responseUser)
+
 }
