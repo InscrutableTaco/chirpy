@@ -26,6 +26,7 @@ type User struct {
 	Email        string    `json:"email"`
 	Token        string    `json:"token"`
 	RefreshToken string    `json:"refresh_token"`
+	IsUpgraded   bool      `json:"is_chirpy_red"`
 }
 
 type Chirp struct {
@@ -120,6 +121,7 @@ func routes(cfg *apiConfig) http.Handler {
 	mux.HandleFunc("POST /api/revoke", cfg.revokeHandler)
 	mux.HandleFunc("PUT /api/users", cfg.updateUserHandler)
 	mux.HandleFunc("DELETE /api/chirps/{chirpID}", cfg.deleteChirpHandler)
+	mux.HandleFunc("POST /api/polka/webhooks", cfg.upgradeHandler)
 	mux.Handle("/app/", cfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("."))))) // register file server for /app/
 	mux.Handle("/app", cfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(".")))))  // and for just /app because why not
 	return mux                                                                                              // return the router

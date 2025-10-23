@@ -83,10 +83,11 @@ func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	responseUser := User{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		ID:         user.ID,
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
+		Email:      user.Email,
+		IsUpgraded: user.IsChirpyRed,
 	}
 
 	respondWithJSON(w, 201, responseUser)
@@ -152,10 +153,11 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	responseUser := User{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		ID:         user.ID,
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
+		Email:      user.Email,
+		IsUpgraded: user.IsChirpyRed,
 	}
 
 	tok, err := auth.MakeJWT(user.ID, cfg.Secret, time.Duration(time.Hour))
@@ -273,8 +275,8 @@ func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 func (cfg *apiConfig) getOneChirpHandler(w http.ResponseWriter, r *http.Request) {
 
 	idStr := r.PathValue("chirpID")
-	chirpID, err := uuid.Parse(idStr)
 
+	chirpID, err := uuid.Parse(idStr)
 	if err != nil {
 		respondWithJSON(w, 400, errorResponse{Error: "Unable to parse chirp id"})
 		return
@@ -412,10 +414,11 @@ func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	responseUser := User{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		ID:         user.ID,
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
+		Email:      user.Email,
+		IsUpgraded: user.IsChirpyRed,
 	}
 
 	respondWithJSON(w, 200, responseUser)
@@ -469,6 +472,52 @@ func (cfg *apiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		log.Printf("Error deleting chirp: %s", err.Error())
 		respondWithJSON(w, 500, errorResponse{Error: "Internal server error"})
+		return
+	}
+
+	w.WriteHeader(204)
+
+}
+
+func (cfg *apiConfig) upgradeHandler(w http.ResponseWriter, r *http.Request) {
+
+	type parameters struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserID string `json:"user_id"`
+		} `json:"data"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		log.Printf("Error decoding parameters: %s", err)
+		w.WriteHeader(400)
+		return
+	}
+
+	if params.Event != "user.upgraded" {
+		w.WriteHeader(204)
+		return
+	}
+
+	id, err := uuid.Parse(params.Data.UserID)
+	if err != nil {
+		log.Printf("Error parsing user id: %s", err)
+		w.WriteHeader(400)
+		return
+	}
+
+	rows, err := cfg.Queries.UpgradeUser(r.Context(), id)
+	if err != nil {
+		log.Printf("Error upgrading user: %s", err)
+		w.WriteHeader(404)
+		return
+	}
+
+	if rows == 0 {
+		w.WriteHeader(404)
 		return
 	}
 
