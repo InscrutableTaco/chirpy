@@ -424,7 +424,7 @@ func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 
 func (cfg *apiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request) {
 
-	//getting the chirp
+	// parse chirp id
 	idStr := r.PathValue("chirpID")
 	chirpID, err := uuid.Parse(idStr)
 	if err != nil {
@@ -432,17 +432,7 @@ func (cfg *apiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	chirp, err := cfg.Queries.GetOneChirp(r.Context(), chirpID)
-	if errors.Is(err, sql.ErrNoRows) {
-		respondWithJSON(w, 404, errorResponse{Error: "not found"})
-		return
-	}
-	if err != nil {
-		respondWithJSON(w, 500, errorResponse{Error: "Internal error"})
-		return
-	}
-
-	//authenticating the user
+	// authenticate user
 	tok, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		log.Printf("bearer token not found")
@@ -457,10 +447,31 @@ func (cfg *apiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if chirp.UserID != userId {
-		log.Printf("User requested unauthorized chirp deletion")
-		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
+	// fetch chirp
+	chirp, err := cfg.Queries.GetOneChirp(r.Context(), chirpID)
+	if errors.Is(err, sql.ErrNoRows) {
+		respondWithJSON(w, 404, errorResponse{Error: "not found"})
 		return
 	}
+	if err != nil {
+		respondWithJSON(w, 500, errorResponse{Error: "Internal error"})
+		return
+	}
+
+	// check author
+	if chirp.UserID != userId {
+		log.Printf("User id %s unauthorized to delete chirp id %s", userId, chirpID)
+		respondWithJSON(w, 403, errorResponse{Error: "Forbidden"})
+		return
+	}
+
+	err = cfg.Queries.DeleteChirp(r.Context(), chirp.ID)
+	if err != nil {
+		log.Printf("Error deleting chirp: %s", err.Error())
+		respondWithJSON(w, 500, errorResponse{Error: "Internal server error"})
+		return
+	}
+
+	w.WriteHeader(204)
 
 }
