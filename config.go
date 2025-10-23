@@ -65,7 +65,7 @@ func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 	hashPass, err := auth.HashPassword(pwd)
 	if err != nil {
 		log.Printf("Error hashing password: %s", err)
-		respondWithJSON(w, 500, errorResponse{Error: "Internal server error"}) // Is 400 correct?
+		respondWithJSON(w, 500, errorResponse{Error: "Internal server error"})
 		return
 	}
 
@@ -345,4 +345,69 @@ func (cfg *apiConfig) revokeHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(204)
 
+}
+
+func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) {
+
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		log.Printf("Error decoding parameters: %s", err)
+		respondWithJSON(w, 400, errorResponse{Error: err.Error()})
+		return
+	}
+
+	tok, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Printf("bearer token not found")
+		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
+		return
+	}
+
+	tokenId, err := auth.ValidateJWT(tok, cfg.Secret)
+	if err != nil {
+		log.Printf("Error validating token: %s", err.Error())
+		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
+		return
+	}
+
+	email := strings.TrimSpace(params.Email)
+	pwd := strings.TrimSpace(params.Password)
+	if email == "" || pwd == "" {
+		respondWithJSON(w, 400, errorResponse{Error: "email and password are required"})
+		return
+	}
+
+	hashPass, err := auth.HashPassword(pwd)
+	if err != nil {
+		log.Printf("Error hashing password: %s", err)
+		respondWithJSON(w, 500, errorResponse{Error: "Internal server error"})
+		return
+	}
+
+
+	userId := tokenId.
+
+
+
+
+
+	dbParams := database.UpdateUserParams{
+		Email:          email,
+		HashedPassword: hashPass,
+		ID:             ,
+	}
+
+	err = cfg.Queries.UpdateUser(r.Context(), dbParams)
+	if err != nil {
+		log.Printf("Error updating user: %s", err)
+		respondWithJSON(w, 500, errorResponse{Error: "Internal server error"})
+		return
+	}
 }
