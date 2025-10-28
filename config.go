@@ -98,11 +98,13 @@ func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 
 func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 
+	// verify environment is dev
 	if cfg.Platform != "dev" {
 		respondWithJSON(w, 403, errorResponse{Error: "403 Forbidden"})
 		return
 	}
 
+	// delete all users from the database
 	err := cfg.Queries.DeleteUsers(r.Context())
 	if err != nil {
 		log.Printf("Error deleting users: %s", err)
@@ -110,6 +112,7 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// delete all chirps from the database
 	err = cfg.Queries.DeleteChirps(r.Context())
 	if err != nil {
 		log.Printf("Error deleting chirps: %s", err)
@@ -117,17 +120,22 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//reset page hits counter
 	cfg.fileserverHits.Store(0)
+
+	// send success message
 	respondWithJSON(w, 200, map[string]string{"status": "ok"})
 }
 
 func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 
+	// declare struct for login params
 	type parameters struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
 
+	// decode params from request
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	err := decoder.Decode(&params)
@@ -137,9 +145,8 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// lookup user by email
 	email := strings.TrimSpace(params.Email)
-	pwd := strings.TrimSpace(params.Password)
-
 	user, err := cfg.Queries.GetUserByEmail(r.Context(), email)
 	if err != nil {
 		log.Printf("Error locating user: %s", err)
@@ -147,6 +154,8 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// compare password hashes
+	pwd := strings.TrimSpace(params.Password)
 	match, err := auth.CheckPasswordHash(pwd, user.HashedPassword)
 	if !match || err != nil {
 		log.Printf("Password mismatch or error")
@@ -154,6 +163,7 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// create user for response
 	responseUser := User{
 		ID:         user.ID,
 		CreatedAt:  user.CreatedAt,
@@ -162,6 +172,7 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		IsUpgraded: user.IsChirpyRed,
 	}
 
+	// create a json web token
 	tok, err := auth.MakeJWT(user.ID, cfg.Secret, time.Duration(time.Hour))
 	if err != nil {
 		log.Printf("error: %s", err)
@@ -169,6 +180,7 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// create a refresh token
 	refreshTok, err := auth.MakeRefreshToken()
 	if err != nil {
 		log.Printf("error: %s", err)
@@ -176,6 +188,7 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// store refresh token in the database
 	_, err = cfg.Queries.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
 		Token:  refreshTok,
 		UserID: user.ID,
@@ -190,9 +203,11 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// add both tokens to the user struct for response
 	responseUser.Token = tok
 	responseUser.RefreshToken = refreshTok
 
+	// send successful response
 	respondWithJSON(w, 200, responseUser)
 
 }
@@ -472,7 +487,6 @@ func (cfg *apiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request)
 		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
 		return
 	}
-
 	userId, err := auth.ValidateJWT(tok, cfg.Secret)
 	if err != nil {
 		log.Printf("Error validating token: %s", err.Error())
@@ -498,6 +512,7 @@ func (cfg *apiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// delete chirps from the database
 	err = cfg.Queries.DeleteChirp(r.Context(), chirp.ID)
 	if err != nil {
 		log.Printf("Error deleting chirp: %s", err.Error())
@@ -505,6 +520,7 @@ func (cfg *apiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// set success header
 	w.WriteHeader(204)
 
 }
