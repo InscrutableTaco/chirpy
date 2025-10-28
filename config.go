@@ -332,6 +332,7 @@ func (cfg *apiConfig) getOneChirpHandler(w http.ResponseWriter, r *http.Request)
 
 func (cfg *apiConfig) refreshHandler(w http.ResponseWriter, r *http.Request) {
 
+	// obtain refresh token from request
 	tok, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		log.Printf("bearer token not found")
@@ -339,6 +340,7 @@ func (cfg *apiConfig) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// retrieve user id from refresh token in database
 	user, err := cfg.Queries.GetUserFromRefreshToken(r.Context(), tok)
 	if err != nil {
 		log.Printf("refresh token lookup failed")
@@ -346,6 +348,7 @@ func (cfg *apiConfig) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// create a new json web token
 	newTok, err := auth.MakeJWT(user.ID, cfg.Secret, time.Duration(time.Hour))
 	if err != nil {
 		log.Printf("error: %s", err)
@@ -353,6 +356,7 @@ func (cfg *apiConfig) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// send success msg
 	respondWithJSON(w, 200, map[string]string{"token": newTok})
 }
 
