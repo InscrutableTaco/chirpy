@@ -300,26 +300,26 @@ func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 
 func (cfg *apiConfig) getOneChirpHandler(w http.ResponseWriter, r *http.Request) {
 
+	// get chirp id from request
 	idStr := r.PathValue("chirpID")
-
 	chirpID, err := uuid.Parse(idStr)
 	if err != nil {
 		respondWithJSON(w, 400, errorResponse{Error: "Unable to parse chirp id"})
 		return
 	}
 
+	// retrieve chirp from database
 	chirp, err := cfg.Queries.GetOneChirp(r.Context(), chirpID)
-
 	if errors.Is(err, sql.ErrNoRows) {
 		respondWithJSON(w, 404, errorResponse{Error: "not found"})
 		return
 	}
-
 	if err != nil {
 		respondWithJSON(w, 500, errorResponse{Error: "Internal error"})
 		return
 	}
 
+	// return json body with chirp struct
 	respondWithJSON(w, 200, Chirp{
 		ID:        chirp.ID,
 		CreatedAt: chirp.CreatedAt,
