@@ -93,16 +93,19 @@ func MakeRefreshToken() (string, error) {
 
 func GetAPIKey(headers http.Header) (string, error) {
 
+	// get authorization header
 	auth := headers.Get("Authorization")
 	if auth == "" {
 		return "", errors.New("authorization not found")
 	}
 
+	// verify format
 	const prefix = "ApiKey "
 	if !strings.HasPrefix(auth, prefix) {
 		return "", errors.New("authorization missing prefix")
 	}
 
+	// get token
 	token := strings.TrimSpace(strings.TrimPrefix(auth, prefix))
 
 	return token, nil
