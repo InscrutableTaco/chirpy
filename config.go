@@ -527,19 +527,22 @@ func (cfg *apiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request)
 
 func (cfg *apiConfig) upgradeHandler(w http.ResponseWriter, r *http.Request) {
 
+	// get api key from request
 	key, err := auth.GetAPIKey(r.Header)
 	if err != nil {
 		log.Printf("api key not found")
-		w.WriteHeader(401)
+		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
+	// authenticate key
 	if key != cfg.ApiKey {
 		log.Printf("api key doesn't match")
-		w.WriteHeader(401)
+		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
+	// struct to receive request params
 	type parameters struct {
 		Event string `json:"event"`
 		Data  struct {
@@ -547,39 +550,45 @@ func (cfg *apiConfig) upgradeHandler(w http.ResponseWriter, r *http.Request) {
 		} `json:"data"`
 	}
 
+	// decode the request body
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	err = decoder.Decode(&params)
 	if err != nil {
 		log.Printf("Error decoding parameters: %s", err)
-		w.WriteHeader(400)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
+	// not an upgrade request? return
 	if params.Event != "user.upgraded" {
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
+	// parse the user id
 	id, err := uuid.Parse(params.Data.UserID)
 	if err != nil {
 		log.Printf("Error parsing user id: %s", err)
-		w.WriteHeader(400)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
+	// upgrade the user (upgrades ALL rows matching the id)
 	rows, err := cfg.Queries.UpgradeUser(r.Context(), id)
+
+	// error handling the query
 	if err != nil {
 		log.Printf("Error upgrading user: %s", err)
-		w.WriteHeader(404)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-
 	if rows == 0 {
-		w.WriteHeader(404)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	w.WriteHeader(204)
+	// success
+	w.WriteHeader(http.StatusNoContent)
 
 }
