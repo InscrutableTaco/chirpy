@@ -42,21 +42,23 @@ func (cfg *apiConfig) writeNumberOfRequests(w http.ResponseWriter, r *http.Reque
 
 func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 
+	// struct for decoding into
 	type parameters struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
 
+	// decode the request body
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	err := decoder.Decode(&params)
-
 	if err != nil {
 		log.Printf("Error decoding parameters: %s", err)
 		respondWithJSON(w, 400, errorResponse{Error: err.Error()})
 		return
 	}
 
+	// format email/password
 	email := strings.TrimSpace(params.Email)
 	pwd := strings.TrimSpace(params.Password)
 	if email == "" || pwd == "" {
@@ -64,6 +66,7 @@ func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// hash password
 	hashPass, err := auth.HashPassword(pwd)
 	if err != nil {
 		log.Printf("Error hashing password: %s", err)
@@ -71,19 +74,21 @@ func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// params for adding user row
 	dbParams := database.CreateUserParams{
 		Email:          params.Email,
 		HashedPassword: hashPass,
 	}
 
+	// add a user row
 	user, err := cfg.Queries.CreateUser(r.Context(), dbParams)
-
 	if err != nil {
 		log.Printf("Error creating user: %s", err)
 		respondWithJSON(w, 500, errorResponse{Error: "Internal server error"})
 		return
 	}
 
+	// struct for response body
 	responseUser := User{
 		ID:         user.ID,
 		CreatedAt:  user.CreatedAt,
@@ -92,6 +97,7 @@ func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 		IsUpgraded: user.IsChirpyRed,
 	}
 
+	// success msg
 	respondWithJSON(w, 201, responseUser)
 
 }
