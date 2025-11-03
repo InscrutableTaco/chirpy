@@ -220,6 +220,7 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 
+	// authenticate the user
 	tok, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		log.Printf("bearer token not found")
@@ -227,21 +228,26 @@ func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// struct for decoding body
 	type createChirpDTO struct {
 		Body string `json:"body"`
 	}
-
 	var dto createChirpDTO
-	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
+
+	// decode the body into the struct
+	err = json.NewDecoder(r.Body).Decode(&dto)
+	if err != nil {
 		respondWithJSON(w, 400, errorResponse{Error: "invalid JSON"})
 		return
 	}
 
+	// validate chirp length
 	if len(dto.Body) > 140 {
 		respondWithJSON(w, 400, errorResponse{Error: "Chirp is too long"})
 		return
 	}
 
+	// check for authorization
 	tokenId, err := auth.ValidateJWT(tok, cfg.Secret)
 	if err != nil {
 		log.Printf("Error validating token: %s", err.Error())
@@ -249,11 +255,13 @@ func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// params for adding chirp
 	params := database.CreateChirpParams{
 		Body:   stripProfane(dto.Body),
 		UserID: tokenId,
 	}
 
+	// add the chirp
 	chirp, err := cfg.Queries.CreateChirp(r.Context(), params)
 	if err != nil {
 		log.Printf("Error creating chirp: %s", err)
@@ -261,6 +269,7 @@ func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// success response
 	respondWithJSON(w, 201, Chirp{
 		ID:        chirp.ID,
 		CreatedAt: chirp.CreatedAt,
