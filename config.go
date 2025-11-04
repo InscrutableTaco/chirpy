@@ -282,12 +282,14 @@ func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 
 func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 
+	// id, sort criteria from url
 	idStr := r.URL.Query().Get("author_id")
 	sortStr := r.URL.Query().Get("sort")
 
 	var chirps []database.Chirp
 	var err error
 
+	// id specified?
 	if idStr != "" {
 		id, err := uuid.Parse(idStr)
 		if err != nil {
@@ -295,12 +297,14 @@ func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 			respondWithJSON(w, 401, "Invalid user id")
 			return
 		}
+
+		// get user's chirps if specified
 		chirps, err = cfg.Queries.GetUserChirps(r.Context(), id)
 		if err != nil {
 			respondWithJSON(w, 500, errorResponse{Error: err.Error()})
 			return
 		}
-	} else {
+	} else { // otherwise get all chirps
 		chirps, err = cfg.Queries.GetAllChirps(r.Context())
 		if err != nil {
 			respondWithJSON(w, 500, errorResponse{Error: err.Error()})
@@ -310,6 +314,7 @@ func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 
 	chirpSlice := make([]Chirp, 0, len(chirps))
 
+	// prepare struct for response
 	for _, c := range chirps {
 		chirpSlice = append(chirpSlice, Chirp{
 			ID:        c.ID,
@@ -320,10 +325,12 @@ func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// sorting
 	if sortStr == "desc" {
 		sort.Slice(chirpSlice, func(i, j int) bool { return chirpSlice[i].CreatedAt.After(chirpSlice[j].CreatedAt) })
 	}
 
+	// response body with chirps
 	respondWithJSON(w, 200, chirpSlice)
 
 }
