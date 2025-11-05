@@ -298,7 +298,7 @@ func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// get user's chirps if specified
+		// get user's chirps if so
 		chirps, err = cfg.Queries.GetUserChirps(r.Context(), id)
 		if err != nil {
 			respondWithJSON(w, 500, errorResponse{Error: err.Error()})
@@ -398,6 +398,8 @@ func (cfg *apiConfig) refreshHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) revokeHandler(w http.ResponseWriter, r *http.Request) {
+
+	// get token
 	tok, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		log.Printf("bearer token not found")
@@ -405,6 +407,7 @@ func (cfg *apiConfig) revokeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// revoke refresh token
 	err = cfg.Queries.RevokeRefreshToken(r.Context(), tok)
 	if err != nil {
 		log.Printf("could not retrieve refresh token")
@@ -412,6 +415,7 @@ func (cfg *apiConfig) revokeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// success header
 	w.WriteHeader(204)
 
 }
