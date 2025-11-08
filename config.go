@@ -422,11 +422,13 @@ func (cfg *apiConfig) revokeHandler(w http.ResponseWriter, r *http.Request) {
 
 func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) {
 
+	// struct to receive credentials
 	type parameters struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
 
+	// decode credentials
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	err := decoder.Decode(&params)
@@ -436,13 +438,13 @@ func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// authenticate user
 	tok, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		log.Printf("bearer token not found")
 		respondWithJSON(w, 401, errorResponse{Error: "Unauthorized"})
 		return
 	}
-
 	userId, err := auth.ValidateJWT(tok, cfg.Secret)
 	if err != nil {
 		log.Printf("Error validating token: %s", err.Error())
@@ -450,6 +452,7 @@ func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// parse new email and/or password
 	email := strings.TrimSpace(params.Email)
 	pwd := strings.TrimSpace(params.Password)
 	if email == "" || pwd == "" {
@@ -457,6 +460,7 @@ func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// hash password for storage
 	hashPass, err := auth.HashPassword(pwd)
 	if err != nil {
 		log.Printf("Error hashing password: %s", err)
@@ -464,12 +468,14 @@ func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// params to call user update
 	dbParams := database.UpdateUserParams{
 		Email:          email,
 		HashedPassword: hashPass,
 		ID:             userId,
 	}
 
+	// update the user
 	err = cfg.Queries.UpdateUser(r.Context(), dbParams)
 	if err != nil {
 		log.Printf("Error updating user: %s", err)
@@ -477,6 +483,7 @@ func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// retrieve updated user
 	user, err := cfg.Queries.GetUserByID(r.Context(), userId)
 	if err != nil {
 		log.Printf("Error retrieving user after updating: %s", err)
@@ -484,6 +491,7 @@ func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// struct for response
 	responseUser := User{
 		ID:         user.ID,
 		CreatedAt:  user.CreatedAt,
@@ -492,6 +500,7 @@ func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 		IsUpgraded: user.IsChirpyRed,
 	}
 
+	// success response
 	respondWithJSON(w, 200, responseUser)
 
 }
