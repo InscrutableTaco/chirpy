@@ -33,10 +33,20 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 }
 
 func (cfg *apiConfig) writeNumberOfRequests(w http.ResponseWriter, r *http.Request) {
+
+	// load the current hit count from an atomic.Int32 struct (a special wrapper whose Load method protects against race conditions)
 	hits := cfg.fileserverHits.Load()
+
+	// raw response body
 	response := fmt.Sprintf("<html><body><h1>Welcome, Chirpy Admin</h1><p>Chirpy has been visited %d times!</p></body></html>", hits)
+
+	// set the header
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	// set status code
 	w.WriteHeader(200)
+
+	// write the response
 	w.Write([]byte(response))
 }
 
