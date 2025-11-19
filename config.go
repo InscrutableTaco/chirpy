@@ -26,8 +26,12 @@ type apiConfig struct {
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
+
+	// return a handler function which...
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// increments the hit counter
 		cfg.fileserverHits.Add(1)
+		// hand off to the actual handler — this is where the request is handled
 		next.ServeHTTP(w, r)
 	})
 }
