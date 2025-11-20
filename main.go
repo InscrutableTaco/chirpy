@@ -70,43 +70,6 @@ func stripProfane(s string) string {
 	return strings.Join(words, " ")
 }
 
-//replaced w/ cfg.chirpsHandler
-/*
-func validateHandler(w http.ResponseWriter, r *http.Request) {
-
-	type parameters struct {
-		Body string `json:"body"`
-	}
-
-	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
-	err := decoder.Decode(&params)
-	if err != nil {
-		log.Printf("Error decoding parameters: %s", err)
-		respondWithJSON(w, 400, errorResponse{Error: err.Error()})
-		return
-	}
-	// params is a struct with data populated successfully
-
-	type errorVals struct {
-		Error string `json:"error"`
-	}
-
-	type validVals struct {
-		CleanedBody string `json:"cleaned_body"`
-	}
-
-	if len(params.Body) > 140 {
-		err := respondWithJSON(w, 400, errorVals{Error: "Chirp is too long"})
-		if err != nil {
-			log.Printf("Error responding with JSON: %s", err)
-		}
-		return
-	}
-	respondWithJSON(w, 200, validVals{CleanedBody: stripProfane(params.Body)})
-}
-*/
-
 func routes(cfg *apiConfig) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/healthz", healthzHandler)
